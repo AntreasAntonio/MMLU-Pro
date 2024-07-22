@@ -12,20 +12,9 @@ import numpy as np
 import torch
 import transformers
 from datasets import load_dataset
-from rich import print
-
-# set logging to use rich
-from rich.logging import RichHandler
-from rich.traceback import install
-
-install(width=120)
-
 from tqdm import tqdm
 from transformers import AutoModelForCausalLM, AutoModelForSeq2SeqLM, AutoTokenizer
 from vllm import LLM, SamplingParams
-
-logging.basicConfig(level=logging.DEBUG, handlers=[RichHandler()])
-
 
 choices = [
     "A",
@@ -58,18 +47,21 @@ def load_mmlu_pro():
 
 
 def load_model():
-
-    llm = LLM(
-        model=args.model,
-        gpu_memory_utilization=float(args.gpu_util),
-        tensor_parallel_size=4,
-        max_model_len=max_model_length,
-        trust_remote_code=True,
-        quantization="fp8",
-    )
-    sampling_params = SamplingParams(temperature=0, max_tokens=max_new_tokens, stop=["Question:"])
-    tokenizer = transformers.AutoTokenizer.from_pretrained(args.model, trust_remote_code=True)
-
+    try:
+        llm = LLM(
+            model=args.model,
+            gpu_memory_utilization=float(args.gpu_util),
+            tensor_parallel_size=args.ngpu,
+            max_model_len=max_model_length,
+            trust_remote_code=True,
+        )
+        sampling_params = SamplingParams(
+            temperature=0, max_tokens=max_new_tokens, stop=["Question:"]
+        )
+        tokenizer = transformers.AutoTokenizer.from_pretrained(args.model, trust_remote_code=True)
+    except Exception as e:
+        print("vllm unsupported models", e)
+        return None, None
     return (llm, sampling_params), tokenizer
 
 
@@ -355,7 +347,7 @@ if __name__ == "__main__":
         default="eval_record_collection.csv",
     )
     parser.add_argument("--gpu_util", "-gu", type=str, default="0.8")
-    parser.add_argument("--batch_size", "-bs", type=int, default=1)
+    parser.add_argument("--batch_size", "-bs", type=int, default=1024)
     parser.add_argument("--model", "-m", type=str, default="meta-llama/Llama-2-7b-hf")
 
     args = parser.parse_args()
@@ -385,4 +377,5 @@ if __name__ == "__main__":
         ],
     )
 
+    main()
     main()
